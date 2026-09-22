@@ -12,6 +12,12 @@ defmodule Theme1Web.Router do
     post "/workingtime/:userID", WorkingTimeController, :create
     put "/workingtime/:id", WorkingTimeController, :update
     delete "/workingtime/:id", WorkingTimeController, :delete
+
+    get "/users", UserController, :index
+    post "/users", UserController, :create
+    get "/users/:userID", UserController, :show
+    put "/users/:userID", UserController, :update
+    delete "/users/:userID", UserController, :delete
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
