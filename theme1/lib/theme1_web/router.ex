@@ -7,6 +7,9 @@ defmodule Theme1Web.Router do
 
   scope "/api", Theme1Web do
     pipe_through :api
+    #Clock
+    get "/clocks/:userID", ClockController, :index
+    post "/clocks/:userID", ClockController, :create 
     get "/workingtime/:userID", WorkingTimeController, :index
     get "/workingtime/:userID/:id", WorkingTimeController, :show
     post "/workingtime/:userID", WorkingTimeController, :create
@@ -31,7 +34,7 @@ defmodule Theme1Web.Router do
 
     scope "/dev" do
       pipe_through [:fetch_session, :protect_from_forgery]
-
+  
       live_dashboard "/dashboard", metrics: Theme1Web.Telemetry
       forward "/mailbox", Plug.Swoosh.MailboxPreview
     end
