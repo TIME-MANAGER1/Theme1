@@ -8,8 +8,8 @@ defmodule Theme1Web.Router do
   scope "/api", Theme1Web do
     pipe_through :api
     #Clock
-    get "clocks/:userID", ClockController, :index
-    post "clocks/:userID", ClockController, create 
+    get "/clocks/:userID", ClockController, :index
+    post "/clocks/:userID", ClockController, :create 
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

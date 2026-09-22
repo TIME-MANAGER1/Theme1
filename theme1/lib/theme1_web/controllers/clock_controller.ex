@@ -12,22 +12,23 @@ defmodule Theme1Web.ClockController do
     end
 
 
-def create(conn, params) do
-  user_id = String.to_integer(params["userID"])
+    def create(conn, params) do
+        user_id = String.to_integer(params["userID"])
 
-  attrs = %{
-    "time" => params["time"],
-    "status" => params["status"],
-    "user_id" => user_id
-  }
+        attrs = %{
+        "time" => params["time"],
+        "status" => params["status"],
+        "user_id" => user_id
+        }
 
-  changeset = Theme1.Clock.changeset(%Theme1.Clock{}, attrs)
+        changeset = Theme1.Clock.changeset(%Theme1.Clock{}, attrs)
 
-  case Repo.insert(changeset) do
-    {:ok, clock} ->
-      json(conn, clock)
+        case Repo.insert(changeset) do
+            {:ok, clock} ->
+                json(conn, clock)
 
-    {:error, changeset} ->
-      json(conn, %{errors: changeset.errors})
-  end
+            {:error, changeset} ->
+                json(conn, %{errors: changeset.errors})
+        end
+    end
 end
