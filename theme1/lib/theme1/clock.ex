@@ -6,3 +6,9 @@ defmodule Theme1.Clock do
         belongs_to :user, Theme1.User 
     end
 end
+
+def changeset(clock, attrs) do
+  clock
+  |> cast(attrs, [:time, :status, :user_id])
+  |> validate_required([:time, :status, :user_id])
+end
