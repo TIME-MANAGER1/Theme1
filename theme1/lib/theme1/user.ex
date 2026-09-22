@@ -7,7 +7,7 @@ defmodule Theme1.User do
     field :email, :string
 
     has_many :clocks, Theme1.Clock
-    has_many :workingtimes, Theme1.Workingtime
+    has_many :workingtimes, Theme1.WorkingTime
   end
 
   def changeset(user, attrs) do
