@@ -1,45 +1,106 @@
-# Theme1
+# TIME MANAGER - User APIs
 
-To start your Phoenix server:
+This project provides REST APIs for managing users.
 
-* Run `mix setup` to install and setup dependencies
-* Start Phoenix endpoint with `mix phx.server` or inside IEx with `iex -S mix phx.server`
+## User APIs
 
-Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
+### 1. Get All Users
 
-Ready to run in production? Please [check our deployment guides](https://phoenix.hexdocs.pm/deployment.html).
+**GET** `/api/users`
 
-## Learn more
+```bash
+curl.exe http://localhost:4000/api/users
+```
 
-* Official website: https://www.phoenixframework.org/
-* Guides: https://phoenix.hexdocs.pm/overview.html
-* Docs: https://phoenix.hexdocs.pm
-* Forum: https://elixirforum.com/c/phoenix-forum
-* Source: https://github.com/phoenixframework/phoenix
+You can also filter by email and/or username:
 
+```bash
+curl.exe "http://localhost:4000/api/users?email=ahmed@example.com&username=ahmed"
+```
 
+### 2. Get User by ID
 
-Ausi voici la chronologie depuis la creation ou le lancement de phoenix jusqu'a la config de la base de donnée
-1. mix phx.new
-       ↓
-2. Phoenix génère TodoApi.Repo
-       ↓
-3. config/dev.exs contient la configuration du Repo
-       ↓
-4. On configure les identifiants PostgreSQL si nécessaire
-       ↓
-5. mix ecto.create
-       ↓
-6. PostgreSQL crée todo_api_dev
-       ↓
-7. mix ecto.gen.migration ...
-       ↓
-8. mix ecto.migrate
-       ↓
-9. On crée notre Todo
+**GET** `/api/users/:userID`
 
+```bash
+curl.exe http://localhost:4000/api/users/1
+```
 
+### 3. Create User
 
-Pour des issues lorsqu'on essai de faire le create pour lancer ecto il faut s'assurer d'    voir mit le bon mot de passe pour postgress
-sudo -u postgres psql
-Pour changer le pasword : ALTER USER postgres WITH PASSWORD 'TonMotDePasse';
+**POST** `/api/users`
+
+Create a `user.json` file:
+
+```json
+{
+  "username": "ahmed",
+  "email": "ahmed@example.com"
+}
+```
+
+Then run:
+
+```bash
+curl.exe -X POST "http://localhost:4000/api/users" -H "Content-Type: application/json" --data-binary "@user.json"
+```
+
+### 4. Update User
+
+**PUT** `/api/users/:userID`
+
+Create an `update-user.json` file:
+
+```json
+{
+  "username": "ahmed_updated",
+  "email": "ahmed.new@example.com"
+}
+```
+
+Then run:
+
+```bash
+curl.exe -X PUT "http://localhost:4000/api/users/1" -H "Content-Type: application/json" --data-binary "@update-user.json"
+```
+
+### 5. Delete User
+
+**DELETE** `/api/users/:userID`
+
+```bash
+curl.exe -i -X DELETE "http://localhost:4000/api/users/1"
+```
+
+A successful delete returns:
+
+```text
+HTTP/1.1 204 No Content
+```
+
+## User Fields
+
+| Field | Type | Required |
+|---|---|---|
+| username | string | Yes |
+| email | string | Yes |
+
+The email must have a valid format such as:
+
+```text
+ahmed@example.com
+```
+
+## Run the Server
+
+From the project directory:
+
+```bash
+mix phx.server
+```
+
+The API will be available at:
+
+```text
+http://localhost:4000
+```
