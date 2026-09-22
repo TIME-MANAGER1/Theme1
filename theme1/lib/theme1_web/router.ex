@@ -7,6 +7,12 @@ defmodule Theme1Web.Router do
 
   scope "/api", Theme1Web do
     pipe_through :api
+
+    get "/users", UserController, :index
+    post "/users", UserController, :create
+    get "/users/:userID", UserController, :show
+    put "/users/:userID", UserController, :update
+    delete "/users/:userID", UserController, :delete
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
