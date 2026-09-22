@@ -7,6 +7,11 @@ defmodule Theme1Web.Router do
 
   scope "/api", Theme1Web do
     pipe_through :api
+    get "/workingtime/:userID", WorkingTimeController, :index
+    get "/workingtime/:userID/:id", WorkingTimeController, :show
+    post "/workingtime/:userID", WorkingTimeController, :create
+    put "/workingtime/:id", WorkingTimeController, :update
+    delete "/workingtime/:id", WorkingTimeController, :delete
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
