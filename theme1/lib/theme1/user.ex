@@ -15,5 +15,6 @@ defmodule Theme1.User do
     |> cast(attrs, [:username, :email])
     |> validate_required([:username, :email])
     |> validate_format(:email, ~r/^[^@\s]+@[^@\s]+\.[^@\s]+$/)
+    |> unique_constraint(:email)
   end
 end
