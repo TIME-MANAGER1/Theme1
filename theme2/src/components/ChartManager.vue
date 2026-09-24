@@ -75,18 +75,27 @@ export default {
     },
   },
 
-  async mounted() {
-    await this.getWorkingTimes();
+  watch: {
+    userId: {
+      immediate: true,
+      handler() {
+        this.getWorkingTimes();
+      }
+    }
   },
 
   methods: {
     async getWorkingTimes() {
+      const requestedUserId = this.userId;
       this.loading = true;
       this.error = "";
+      this.workingTimes = [];
+      this.startDate = "";
+      this.endDate = "";
 
       try {
         const response = await fetch(
-          `/api/workingtime/${this.userId}`
+          `/api/workingtime/${requestedUserId}`
         );
 
         if (!response.ok) {
@@ -95,7 +104,9 @@ export default {
 
         const result = await response.json();
 
-        this.workingTimes = result.data;
+        if (this.userId === requestedUserId) {
+          this.workingTimes = result.data;
+        }
       } catch (error) {
         console.error(error);
         this.error = "Could not load working times.";
