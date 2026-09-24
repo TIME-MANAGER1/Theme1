@@ -1,66 +1,44 @@
 <template>
-  <div>
-    <h2>User</h2>
+  <main class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Time Manager home"><span class="brand-mark">T</span><span>Time Manager</span></a>
+      <span class="workspace-label">Time Manager <span class="status-dot"></span></span>
+    </header>
 
-    <h3>Find User</h3>
+    <section class="hero">
+      <p class="eyebrow">Account workspace</p>
+      <h1>Make time for<br><em>the right people.</em></h1>
+      <p class="hero-copy">Keep your team directory clear, current, and easy to find.</p>
+    </section>
 
-    <input
-      v-model="searchEmail"
-      type="email"
-      placeholder="Enter user email"
-    >
+    <div class="content-grid">
+      <aside class="search-panel">
+        <div class="panel-heading"><span class="step-number">01</span><div><p class="eyebrow">Directory</p><h2>Find a person</h2></div></div>
+        <form class="search-form" @submit.prevent="getUser">
+          <label for="search-email">Email address</label>
+          <div class="input-with-icon"><span aria-hidden="true">@</span><input id="search-email" v-model="searchEmail" type="email" placeholder="name@company.com" required></div>
+          <button class="button button-primary" type="submit"><span>Search directory</span><span class="button-arrow" aria-hidden="true">&#8599;</span></button>
+        </form>
+        <p class="helper-text">Search by the email address attached to the account.</p>
+      </aside>
 
-    <button @click="getUser">
-      Find User
-    </button>
+      <section class="main-panel" aria-live="polite">
+        <div v-if="user" class="profile-view">
+          <div class="profile-header"><div class="avatar">TM</div><div><p class="eyebrow">Selected account</p><h2>{{ user.username }}</h2><p class="muted">{{ user.email }}</p></div><span class="member-tag">Active</span></div>
+          <form class="editor" @submit.prevent="updateUser">
+            <div class="section-title"><span class="step-number">02</span><div><p class="eyebrow">Profile details</p><h3>Edit account</h3></div></div>
+            <div class="form-grid"><label>Full name<input v-model="editUsername" type="text" placeholder="Full name" required></label><label>Email address<input v-model="editEmail" type="email" placeholder="name@company.com" required></label></div>
+            <div class="editor-actions"><button class="button button-primary" type="submit">Save changes<span class="button-arrow" aria-hidden="true">&#8599;</span></button><button class="text-button" type="button" @click="deleteUser">Remove account</button></div>
+          </form>
+        </div>
 
-    <div v-if="user">
-      <p>Username: {{ user.username }}</p>
-      <p>Email: {{ user.email }}</p>
+        <div v-else class="empty-state"><div class="empty-orbit"><span></span></div><p class="eyebrow">Your directory awaits</p><h2>Search for an account<br>to get started.</h2><p class="muted">The person’s profile and editing tools will appear here.</p></div>
 
-      <h3>Update User</h3>
-
-      <input
-        v-model="editUsername"
-        type="text"
-        placeholder="Username"
-      >
-
-      <input
-        v-model="editEmail"
-        type="email"
-        placeholder="Email"
-      >
-
-      <button @click="updateUser">
-        Update User
-      </button>
-
-      <button @click="deleteUser">
-        Delete User
-      </button>
+        <div class="create-panel"><div class="section-title"><span class="step-number">03</span><div><p class="eyebrow">New entry</p><h3>Add someone</h3></div></div><form class="create-form" @submit.prevent="createUser"><input v-model="newUsername" type="text" placeholder="Full name" aria-label="New user name" required><input v-model="newEmail" type="email" placeholder="Email address" aria-label="New user email" required><button class="button button-secondary" type="submit">Add person <span aria-hidden="true">+</span></button></form></div>
+      </section>
     </div>
-
-    <hr>
-
-    <h3>Create User</h3>
-
-    <input
-      v-model="newUsername"
-      type="text"
-      placeholder="Username"
-    >
-
-    <input
-      v-model="newEmail"
-      type="email"
-      placeholder="Email"
-    >
-
-    <button @click="createUser">
-      Create User
-    </button>
-  </div>
+    <footer class="footer"><span>Time Manager directory</span><span>Made for focused teams · 2026</span></footer>
+  </main>
 </template>
 
 <script>
@@ -75,6 +53,7 @@ export default {
         newEmail: "",
         editUsername: "",
         editEmail: "",
+        
     };
   },
 
@@ -165,3 +144,5 @@ export default {
   }
 };
 </script>
+
+<style src="./User.css"></style>
