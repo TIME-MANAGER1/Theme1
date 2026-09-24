@@ -28,7 +28,7 @@
           <form class="editor" @submit.prevent="updateUser">
             <div class="section-title"><span class="step-number">02</span><div><p class="eyebrow">Profile details</p><h3>Edit account</h3></div></div>
             <div class="form-grid"><label>Full name<input v-model="editUsername" type="text" placeholder="Full name" required></label><label>Email address<input v-model="editEmail" type="email" placeholder="name@company.com" required></label></div>
-            <div class="editor-actions"><button class="button button-primary" type="submit">Save changes<span class="button-arrow" aria-hidden="true">&#8599;</span></button><button class="text-button" type="button" @click="deleteUser">Remove account</button></div>
+            <div class="editor-actions"><button class="button button-primary" type="submit">Save changes<span class="button-arrow" aria-hidden="true">&#8599;</span></button><RouterLink class="chart-link" :to="`/chartManager/${user.id}#charts`">View working-time charts <span aria-hidden="true">&#8599;</span></RouterLink><button class="text-button" type="button" @click="deleteUser">Remove account</button></div>
           </form>
         </div>
 

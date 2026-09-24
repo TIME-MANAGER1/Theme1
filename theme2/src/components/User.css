@@ -48,6 +48,9 @@ input::placeholder { color: #9ca79c; }
 .editor { padding: 42px 0 43px; border-bottom: 1px solid #d4d6cc; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin: 31px 0; }
 .editor-actions { display: flex; gap: 26px; align-items: center; }
+.chart-link { display: inline-flex; align-items: center; gap: 9px; color: #287c78; font-size: 12px; font-weight: 700; text-decoration: none; }
+.chart-link span { font-size: 16px; line-height: 0; }
+.chart-link:hover { color: #b75c43; }
 .text-button { border: 0; padding: 0; background: none; color: #a3614a; cursor: pointer; font-size: 12px; text-decoration: underline; text-underline-offset: 4px; }
 .empty-state { display: grid; place-items: center; min-height: 330px; padding: 35px; text-align: center; border: 1px dashed #c4c9bf; }
 .empty-state h2 { font-size: 31px; line-height: 1.1; }
@@ -67,6 +70,7 @@ input::placeholder { color: #9ca79c; }
   .search-panel { padding: 24px; }
   .search-form { margin-top: 30px; }
   .form-grid, .create-form { grid-template-columns: 1fr; gap: 21px; }
+  .editor-actions { flex-wrap: wrap; gap: 18px; }
   .create-form .button { justify-self: start; }
   .footer { margin-top: 60px; }
 }
