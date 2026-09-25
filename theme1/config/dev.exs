@@ -3,7 +3,7 @@ import Config
 # Configure your database
 config :theme1, Theme1.Repo,
   username: "postgres",
-  password: "1234",
+  password: "postgres",
   hostname: "localhost",
   database: "theme1_dev",
   stacktrace: true,
