@@ -1,8 +1,7 @@
 <template>
   <main class="page-shell">
     <header class="topbar">
-      <a class="brand" href="#" aria-label="Time Manager home"><span class="brand-mark">T</span><span>Time Manager</span></a>
-      <span class="workspace-label">Time Manager <span class="status-dot"></span></span>
+      <a class="brand" href="#" aria-label="Time Manager home"><span>Time Manager</span></a>
     </header>
 
     <section class="hero">
@@ -25,6 +24,7 @@
       <section class="main-panel" aria-live="polite">
         <div v-if="user" class="profile-view">
           <div class="profile-header"><div class="avatar">TM</div><div><p class="eyebrow">Selected account</p><h2>{{ user.username }}</h2><p class="muted">{{ user.email }}</p></div><span class="member-tag">Active</span></div>
+          <Clock :user-id="user.id" />
           <form class="editor" @submit.prevent="updateUser">
             <div class="section-title"><span class="step-number">02</span><div><p class="eyebrow">Profile details</p><h3>Edit account</h3></div></div>
             <div class="form-grid"><label>Full name<input v-model="editUsername" type="text" placeholder="Full name" required></label><label>Email address<input v-model="editEmail" type="email" placeholder="name@company.com" required></label></div>
@@ -32,7 +32,7 @@
           </form>
         </div>
 
-        <div v-else class="empty-state"><div class="empty-orbit"><span></span></div><p class="eyebrow">Your directory awaits</p><h2>Search for an account<br>to get started.</h2><p class="muted">The person’s profile and editing tools will appear here.</p></div>
+        <div v-else class="empty-state"><p class="eyebrow">Your directory awaits</p><h2>Search for an account<br>to get started.</h2><p class="muted">The person’s profile and editing tools will appear here.</p></div>
 
         <div class="create-panel"><div class="section-title"><span class="step-number">03</span><div><p class="eyebrow">New entry</p><h3>Add someone</h3></div></div><form class="create-form" @submit.prevent="createUser"><input v-model="newUsername" type="text" placeholder="Full name" aria-label="New user name" required><input v-model="newEmail" type="email" placeholder="Email address" aria-label="New user email" required><button class="button button-secondary" type="submit">Add person <span aria-hidden="true">+</span></button></form></div>
       </section>
@@ -42,8 +42,14 @@
 </template>
 
 <script>
+import Clock from "./Clock.vue";
+
 export default {
   name: "User",
+
+  components: {
+    Clock
+  },
 
   data() {
     return {
