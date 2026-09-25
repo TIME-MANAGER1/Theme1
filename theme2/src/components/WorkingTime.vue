@@ -1,106 +1,362 @@
 <template>
-  <div class="p-4 border rounded shadow-sm">
-    <h2>Formulaire de gestion unitaire</h2>
-    
-    <!-- Formulaire de saisie -->
-    <div class="mb-3">
-      <label>Start Date/Time:</label>
-      <input type="datetime-local" v-model="start" class="form-control" />
+  <main class="wt-wrapper">
+    <header class="wt-header">
+      <div class="wt-title-group">
+        <p class="wt-eyebrow">Utilisateur ID: {{ currentUserId }}</p>
+        <h1>{{ isEditMode ? 'Modifier' : 'Cr&eacute;er' }} un <em>cr&eacute;neau</em></h1>
+      </div>
+      <div class="wt-actions">
+        <RouterLink :to="`/workingTimes/${currentUserId}`" class="btn-wt btn-outline">
+          <span>&larr; Retour &agrave; la liste</span>
+        </RouterLink>
+      </div>
+    </header>
+
+    <!-- Feedback Alerts -->
+    <div v-if="error" class="wt-alert wt-alert-error">
+      <span>Erreur : {{ error }}</span>
+      <button class="btn-link" @click="error = ''">Fermer</button>
     </div>
 
-    <div class="mb-3">
-      <label>End Date/Time:</label>
-      <input type="datetime-local" v-model="end" class="form-control" />
+    <div v-if="successMessage" class="wt-alert wt-alert-success">
+      <span>{{ successMessage }}</span>
+      <button class="btn-link" @click="successMessage = ''">Fermer</button>
     </div>
 
-    <!-- Boutons d'action -->
-    <div class="flex gap-2">
-      <button @click="createWorkingTime" class="btn btn-primary">Créer</button>
-      
-      <!-- Si on modifie un élément existant dont on a l'ID -->
-      <button v-if="props.workingTimeData?.id" @click="updateWorkingTime(props.workingTimeData.id)" class="btn btn-warning">
-        Modifier
-      </button>
-      
-      <button v-if="props.workingTimeData?.id" @click="deleteWorkingTime(props.workingTimeData.id)" class="btn btn-danger">
-        Supprimer
-      </button>
-    </div>
-  </div>
+    <!-- Form Card -->
+    <section class="wt-form-card">
+      <form @submit.prevent="handleSubmit">
+        <div class="wt-form-grid">
+          <div class="wt-field">
+            <label for="wt-start">Date &amp; Heure de d&eacute;but</label>
+            <input 
+              id="wt-start" 
+              v-model="start" 
+              type="datetime-local" 
+              required
+            />
+          </div>
+
+          <div class="wt-field">
+            <label for="wt-end">Date &amp; Heure de fin</label>
+            <input 
+              id="wt-end" 
+              v-model="end" 
+              type="datetime-local" 
+              required
+            />
+          </div>
+        </div>
+
+        <!-- Calculated Duration Live Preview -->
+        <div v-if="start && end" class="wt-preview-box">
+          Dur&eacute;e calcul&eacute;e du cr&eacute;neau : <strong>{{ calculatedDuration }}</strong> 
+          <span style="font-size: 11px; margin-left: 8px; color: #71807a;">
+            (Format API : {{ apiStartFormatted }} &rarr; {{ apiEndFormatted }})
+          </span>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="wt-actions" style="margin-top: 24px; justify-content: flex-end;">
+          <!-- Creation Mode -->
+          <button 
+            v-if="!isEditMode" 
+            type="button" 
+            class="btn-wt btn-primary" 
+            :disabled="saving || !start || !end" 
+            @click="createWorkingTime"
+          >
+            <span>{{ saving ? 'Cr&eacute;ation en cours...' : 'Cr&eacute;er le temps de travail' }}</span>
+          </button>
+
+          <!-- Edit Mode -->
+          <template v-else>
+            <button 
+              type="button" 
+              class="btn-wt btn-primary" 
+              :disabled="saving || !start || !end" 
+              @click="updateWorkingTime"
+            >
+              <span>{{ saving ? 'Enregistrement...' : 'Mettre &agrave; jour' }}</span>
+            </button>
+            <button 
+              type="button" 
+              class="btn-wt btn-danger" 
+              :disabled="saving" 
+              @click="deleteWorkingTime"
+            >
+              <span>Supprimer</span>
+            </button>
+          </template>
+        </div>
+      </form>
+    </section>
+  </main>
 </template>
 
-<script setup>
-import { ref, watch } from 'vue';
+<script>
+import "./WorkingTime.css";
 
-// On définit les propriétés reçues par le composant
-const props = defineProps({
-  userId: { type: Number, required: true },
-  workingTimeData: { type: Object, default: null } // Si on veut modifier un élément existant
-});
+export default {
+  name: "WorkingTime",
 
-// Variables réactives pour le formulaire
-const start = ref('');
-const end = ref('');
+  props: {
+    userId: {
+      type: [Number, String],
+      default: null
+    },
+    workingTimeId: {
+      type: [Number, String],
+      default: null
+    },
+    workingTimeData: {
+      type: Object,
+      default: null
+    }
+  },
 
-// Si on passe un objet existant (pour modification), on pré-remplit les champs
-watch(() => props.workingTimeData, (newVal) => {
-  if (newVal) {
-    // Formatage pour input datetime-local (YYYY-MM-DDThh:mm)
-    start.value = newVal.start ? newVal.start.slice(0, 16) : '';
-    end.value = newVal.end ? newVal.end.slice(0, 16) : '';
-  }
-}, { immediate: true });
+  data() {
+    return {
+      start: "",
+      end: "",
+      saving: false,
+      loading: false,
+      error: "",
+      successMessage: ""
+    };
+  },
 
-// 1. Créer un Working Time (POST)
-const createWorkingTime = async () => {
-  try {
-    const response = await fetch(`http://localhost:4000/api/workingtime/${props.userId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        workingtime: {
-          start: new Date(start.value).toISOString(),
-          end: new Date(end.value).toISOString()
+  computed: {
+    currentUserId() {
+      if (this.userId) return this.userId;
+      return this.$route.params.userid || this.$route.params.userID || 1;
+    },
+
+    currentWorkingTimeId() {
+      if (this.workingTimeId) return this.workingTimeId;
+      return this.$route.params.workingtimeid || this.$route.params.id || null;
+    },
+
+    isEditMode() {
+      return !!this.currentWorkingTimeId;
+    },
+
+    apiStartFormatted() {
+      return this.formatInputToApi(this.start);
+    },
+
+    apiEndFormatted() {
+      return this.formatInputToApi(this.end);
+    },
+
+    calculatedDuration() {
+      if (!this.start || !this.end) return '-';
+      const startDate = new Date(this.start);
+      const endDate = new Date(this.end);
+      const diffMs = endDate - startDate;
+      if (isNaN(diffMs) || diffMs < 0) return 'Invalide (la fin doit ?tre apr?s le d?but)';
+      const mins = Math.floor(diffMs / 60000);
+      const hrs = Math.floor(mins / 60);
+      const remMins = mins % 60;
+      return `${hrs}h ${remMins > 0 ? remMins + 'm' : '00m'}`;
+    }
+  },
+
+  watch: {
+    workingTimeData: {
+      immediate: true,
+      handler(newVal) {
+        if (newVal) {
+          this.start = this.formatApiToInput(newVal.start);
+          this.end = this.formatApiToInput(newVal.end);
         }
-      })
-    });
-    if (!response.ok) throw new Error("Erreur lors de la création");
-    alert("Working time créé avec succès !");
-  } catch (err) {
-    console.error(err);
-  }
-};
+      }
+    },
+    '$route.params': {
+      immediate: true,
+      handler() {
+        this.fetchExistingWorkingTime();
+      }
+    }
+  },
 
-// 2. Modifier un Working Time (PUT)
-const updateWorkingTime = async (id) => {
-  try {
-    const response = await fetch(`http://localhost:4000/api/workingtime/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        workingtime: {
-          start: new Date(start.value).toISOString(),
-          end: new Date(end.value).toISOString()
+  mounted() {
+    this.fetchExistingWorkingTime();
+  },
+
+  methods: {
+    formatApiToInput(dateStr) {
+      if (!dateStr) return "";
+      const isoStr = dateStr.replace(' ', 'T');
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return "";
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    },
+
+    formatInputToApi(inputVal) {
+      if (!inputVal) return "";
+      const d = new Date(inputVal);
+      if (isNaN(d.getTime())) return inputVal;
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    },
+
+    async fetchExistingWorkingTime() {
+      if (!this.isEditMode) return;
+      if (this.workingTimeData && this.workingTimeData.start) return;
+
+      this.loading = true;
+      this.error = "";
+
+      try {
+        const response = await fetch(`/api/workingtime/${this.currentUserId}/${this.currentWorkingTimeId}`);
+        if (!response.ok) {
+          const fallbackResp = await fetch(`/api/workingtime/${this.currentUserId}`);
+          if (!fallbackResp.ok) throw new Error("Impossible de r?cup?rer les d?tails du cr?neau.");
+          const result = await fallbackResp.json();
+          const items = result.data || result || [];
+          const match = items.find(item => String(item.id) === String(this.currentWorkingTimeId));
+          if (match) {
+            this.start = this.formatApiToInput(match.start);
+            this.end = this.formatApiToInput(match.end);
+            return;
+          }
+          throw new Error("Cr?neau introuvable.");
         }
-      })
-    });
-    if (!response.ok) throw new Error("Erreur lors de la modification");
-    alert("Working time mis à jour !");
-  } catch (err) {
-    console.error(err);
-  }
-};
 
-// 3. Supprimer un Working Time (DELETE)
-const deleteWorkingTime = async (id) => {
-  try {
-    const response = await fetch(`http://localhost:4000/api/workingtime/${id}`, {
-      method: 'DELETE'
-    });
-    if (!response.ok) throw new Error("Erreur lors de la suppression");
-    alert("Working time supprimé !");
-  } catch (err) {
-    console.error(err);
+        const data = await response.json();
+        const wt = data.data || data;
+        if (wt) {
+          this.start = this.formatApiToInput(wt.start);
+          this.end = this.formatApiToInput(wt.end);
+        }
+      } catch (err) {
+        console.error(err);
+        this.error = err.message || "Erreur lors du chargement des donn?es.";
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    handleSubmit() {
+      if (this.isEditMode) {
+        this.updateWorkingTime();
+      } else {
+        this.createWorkingTime();
+      }
+    },
+
+    async createWorkingTime() {
+      if (!this.start || !this.end) {
+        this.error = "Veuillez renseigner la date de d?but et de fin.";
+        return;
+      }
+
+      this.saving = true;
+      this.error = "";
+      this.successMessage = "";
+
+      try {
+        const payload = {
+          workingtime: {
+            start: this.formatInputToApi(this.start),
+            end: this.formatInputToApi(this.end)
+          }
+        };
+
+        const response = await fetch(`/api/workingtime/${this.currentUserId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          const detail = errData.errors?.user_id ? "L'utilisateur sp?cifi? n'existe pas en base de donn?es." : `Code Erreur: ${response.status}`;
+          throw new Error(`?chec de la cr?ation (${detail})`);
+        }
+
+        this.successMessage = "Temps de travail cr?? avec succ?s !";
+        setTimeout(() => {
+          this.$router.push(`/workingTimes/${this.currentUserId}`);
+        }, 800);
+      } catch (err) {
+        console.error(err);
+        this.error = err.message || "Erreur lors de la cr?ation du temps de travail.";
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    async updateWorkingTime() {
+      if (!this.currentWorkingTimeId) return;
+      if (!this.start || !this.end) {
+        this.error = "Veuillez renseigner la date de d?but et de fin.";
+        return;
+      }
+
+      this.saving = true;
+      this.error = "";
+      this.successMessage = "";
+
+      try {
+        const payload = {
+          workingtime: {
+            start: this.formatInputToApi(this.start),
+            end: this.formatInputToApi(this.end)
+          }
+        };
+
+        const response = await fetch(`/api/workingtime/${this.currentWorkingTimeId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          throw new Error(`?chec de la modification (Status: ${response.status})`);
+        }
+
+        this.successMessage = "Temps de travail mis ? jour avec succ?s !";
+        setTimeout(() => {
+          this.$router.push(`/workingTimes/${this.currentUserId}`);
+        }, 800);
+      } catch (err) {
+        console.error(err);
+        this.error = err.message || "Erreur lors de la mise ? jour.";
+      } finally {
+        this.saving = false;
+      }
+    },
+
+    async deleteWorkingTime() {
+      if (!this.currentWorkingTimeId) return;
+      if (!confirm("?tes-vous s?r de vouloir supprimer ce temps de travail ?")) return;
+
+      this.saving = true;
+      this.error = "";
+
+      try {
+        const response = await fetch(`/api/workingtime/${this.currentWorkingTimeId}`, {
+          method: 'DELETE'
+        });
+
+        if (!response.ok) {
+          throw new Error(`?chec de la suppression (Status: ${response.status})`);
+        }
+
+        this.successMessage = "Temps de travail supprim?.";
+        setTimeout(() => {
+          this.$router.push(`/workingTimes/${this.currentUserId}`);
+        }, 800);
+      } catch (err) {
+        console.error(err);
+        this.error = err.message || "Erreur lors de la suppression.";
+      } finally {
+        this.saving = false;
+      }
+    }
   }
 };
 </script>

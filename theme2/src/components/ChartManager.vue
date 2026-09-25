@@ -37,65 +37,95 @@ import WorkingHoursLineChart from "./WorkingHoursLineChart.vue";
 import WorkingHoursPieChart from "./WorkingHoursPieChart.vue";
 
 export default {
+  name: "ChartManager",
+
   components: {
     WorkingHoursBarChart,
     WorkingHoursLineChart,
     WorkingHoursPieChart
   },
 
+  props: {
+    userId: {
+      type: [Number, String],
+      default: null
+    }
+  },
+
   data() {
     return {
-        workingTimes: [],
-        startDate: "",
-        endDate: "",
-        loading: false,
-        error: ""
+      workingTimes: [],
+      startDate: "",
+      endDate: "",
+      loading: false,
+      error: ""
     };
   },
 
   computed: {
-    userId() {
-      return this.$route.params.userid;
+    targetUserId() {
+      const u = this.userId;
+      if (u !== null && u !== undefined && u !== 'null' && u !== 'undefined' && u !== '') {
+        return u;
+      }
+      const rp = this.$route && this.$route.params ? (this.$route.params.userid || this.$route.params.userID) : null;
+      if (rp !== null && rp !== undefined && rp !== 'null' && rp !== 'undefined' && rp !== '') {
+        return rp;
+      }
+      return null;
     },
 
     filteredWorkingTimes() {
-        return this.workingTimes.filter((workingTime) => {
-            const workingDate = workingTime.start.substring(0, 10);
+      return this.workingTimes.filter((workingTime) => {
+        if (!workingTime || !workingTime.start) return false;
+        const workingDate = workingTime.start.substring(0, 10);
 
-            if (this.startDate && workingDate < this.startDate) {
-            return false;
-            }
+        if (this.startDate && workingDate < this.startDate) {
+          return false;
+        }
 
-            if (this.endDate && workingDate > this.endDate) {
-            return false;
-            }
+        if (this.endDate && workingDate > this.endDate) {
+          return false;
+        }
 
-            return true;
-        });
-    },
+        return true;
+      });
+    }
   },
 
-  async mounted() {
-    await this.getWorkingTimes();
+  watch: {
+    targetUserId: {
+      immediate: true,
+      handler(newVal) {
+        if (newVal) {
+          this.getWorkingTimes();
+        }
+      }
+    }
+  },
+
+  mounted() {
+    if (this.targetUserId) {
+      this.getWorkingTimes();
+    }
   },
 
   methods: {
     async getWorkingTimes() {
+      const uid = this.targetUserId;
+      if (!uid || uid === "undefined" || uid === "null") return;
       this.loading = true;
       this.error = "";
 
       try {
-        const response = await fetch(
-          `/api/workingtime/${this.userId}`
-        );
+        const response = await fetch(`/api/workingtime/${uid}`);
 
         if (!response.ok) {
           throw new Error("Failed to get working times");
         }
 
         const result = await response.json();
-
-        this.workingTimes = result.data;
+        this.workingTimes = Array.isArray(result.data) ? result.data : (Array.isArray(result) ? result : []);
       } catch (error) {
         console.error(error);
         this.error = "Could not load working times.";
