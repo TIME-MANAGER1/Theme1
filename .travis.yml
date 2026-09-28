@@ -23,18 +23,24 @@ jobs:
         - echo "=== Docker Buildx version ==="
         - docker buildx version
 
+        - echo "=== Create multi-platform builder ==="
+        - docker buildx create --name multiarch --driver docker-container --use
+        - docker buildx inspect --bootstrap
+
         - echo "=== Login to Docker Hub ==="
         - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
 
         - echo "=== Build and push backend ==="
-        - docker buildx build
+        - >
+          docker buildx build
           --platform linux/amd64,linux/arm64
           -t maurelk/time-manager-backend:latest
           --push
           ./theme1
 
         - echo "=== Build and push frontend ==="
-        - docker buildx build
+        - >
+          docker buildx build
           --platform linux/amd64,linux/arm64
           -t maurelk/time-manager-frontend:latest
           --push
