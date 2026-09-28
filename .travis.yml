@@ -31,4 +31,10 @@ jobs:
         - echo "=== Push frontend ==="
         - docker push maurelk/time-manager-frontend:latest
 
-    
+    # ==========================
+    # STAGE 2 — DEPLOY
+    # ==========================
+    - stage: Deploy
+      name: "Deploy to Oracle Cloud"
+      script:
+        - echo "Deploy stage will be configured next"
