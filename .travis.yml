@@ -5,7 +5,7 @@ services:
 
 stages:
   - name: Build & Push Image
-  - name: Deploy
+  - name: Deploy on ORACLE Cloud
 
 jobs:
   include:
