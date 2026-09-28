@@ -116,6 +116,9 @@ export default {
       if (!uid || uid === "undefined" || uid === "null") return;
       this.loading = true;
       this.error = "";
+      this.workingTimes = [];
+      this.startDate = "";
+      this.endDate = "";
 
       try {
         const response = await fetch(`/api/workingtime/${uid}`);
