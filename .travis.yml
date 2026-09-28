@@ -10,31 +10,41 @@ stages:
 jobs:
   include:
 
-    # ==========================
+    # ==========================================
     # STAGE 1 — BUILD & PUSH
-    # ==========================
+    # ==========================================
     - stage: Build & Push Image
       name: "Build and Push Docker Images"
-      script:
-        - echo "=== Building backend ==="
-        - docker build -t maurelk/time-manager-backend:latest ./theme1
 
-        - echo "=== Building frontend ==="
-        - docker build -t maurelk/time-manager-frontend:latest ./theme2
+      script:
+        - echo "=== Docker version ==="
+        - docker version
+
+        - echo "=== Docker Buildx version ==="
+        - docker buildx version
 
         - echo "=== Login to Docker Hub ==="
         - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
 
-        - echo "=== Push backend ==="
-        - docker push maurelk/time-manager-backend:latest
+        - echo "=== Build and push backend ==="
+        - docker buildx build
+          --platform linux/amd64,linux/arm64
+          -t maurelk/time-manager-backend:latest
+          --push
+          ./theme1
 
-        - echo "=== Push frontend ==="
-        - docker push maurelk/time-manager-frontend:latest
+        - echo "=== Build and push frontend ==="
+        - docker buildx build
+          --platform linux/amd64,linux/arm64
+          -t maurelk/time-manager-frontend:latest
+          --push
+          ./theme2
 
-    # ==========================
+    # ==========================================
     # STAGE 2 — DEPLOY
-    # ==========================
+    # ==========================================
     - stage: Deploy
       name: "Deploy to Oracle Cloud"
+
       script:
         - echo "Deploy stage will be configured next"
