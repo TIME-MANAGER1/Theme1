@@ -1,0 +1,34 @@
+language: generic
+
+services:
+  - docker
+
+stages:
+  - name: Build & Push Image
+  - name: Deploy
+
+jobs:
+  include:
+
+    # ==========================
+    # STAGE 1 — BUILD & PUSH
+    # ==========================
+    - stage: Build & Push Image
+      name: "Build and Push Docker Images"
+      script:
+        - echo "=== Building backend ==="
+        - docker build -t maurelk/time-manager-backend:latest ./theme1
+
+        - echo "=== Building frontend ==="
+        - docker build -t maurelk/time-manager-frontend:latest ./theme2
+
+        - echo "=== Login to Docker Hub ==="
+        - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+
+        - echo "=== Push backend ==="
+        - docker push maurelk/time-manager-backend:latest
+
+        - echo "=== Push frontend ==="
+        - docker push maurelk/time-manager-frontend:latest
+
+    
