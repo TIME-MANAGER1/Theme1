@@ -55,7 +55,7 @@ jobs:
       script:
         - echo "=== Configure SSH ==="
         - mkdir -p ~/.ssh
-        - echo "$ORACLE_SSH_KEY" > ~/.ssh/oracle_deploy_key
+        - echo "$ORACLE_SSH_KEY_B64" | base64 -d > ~/.ssh/oracle_deploy_key
         - chmod 600 ~/.ssh/oracle_deploy_key
         - ssh-keyscan -H "$ORACLE_HOST" >> ~/.ssh/known_hosts
 
