@@ -53,4 +53,21 @@ jobs:
       name: "Deploy to Oracle Cloud"
 
       script:
-        - echo "Deploy stage will be configured next"
+        - echo "=== Configure SSH ==="
+        - mkdir -p ~/.ssh
+        - echo "$ORACLE_SSH_KEY" > ~/.ssh/oracle_deploy_key
+        - chmod 600 ~/.ssh/oracle_deploy_key
+        - ssh-keyscan -H "$ORACLE_HOST" >> ~/.ssh/known_hosts
+
+        - echo "=== Copy compose.yaml to Oracle ==="
+        - scp -i ~/.ssh/oracle_deploy_key compose.yaml "$ORACLE_USER@$ORACLE_HOST:~/Theme1/compose.yaml"
+
+        - echo "=== Deploy on Oracle ==="
+        - >
+          ssh -i ~/.ssh/oracle_deploy_key
+          "$ORACLE_USER@$ORACLE_HOST"
+          "cd ~/Theme1 &&
+          docker compose pull &&
+          docker compose up -d"
+
+        - echo "=== Deployment completed ==="
