@@ -1,10 +1,12 @@
 services:
   frontend:
-    build: ./theme2
+    image: maurelk/time-manager-frontend:latest
+    depends_on:
+      - backend
     ports:
       - "8080:80"
   backend:
-    build: ./theme1
+    image: maurelk/time-manager-backend:latest
     ports:
       - "4000:4000"
     depends_on:
