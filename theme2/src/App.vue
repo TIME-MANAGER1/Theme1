@@ -10,8 +10,4 @@ export default {
 
 <template>
   <User />
-
-  <hr>
-
-  <RouterView />
 </template>

@@ -13,5 +13,6 @@ defmodule Theme1.WorkingTime do
         workingtime
         |> cast(attrs, [:start, :end, :user_id])
         |> validate_required([:start, :end, :user_id])
+        |> foreign_key_constraint(:user_id)
     end
 end
