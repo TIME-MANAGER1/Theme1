@@ -1,0 +1,77 @@
+language: generic
+
+branches:
+  only:
+    - main
+    
+services:
+  - docker
+
+stages:
+  - name: Build & Push Image
+  - name: Deploy on ORACLE Cloud
+
+jobs:
+  include:
+
+    # ==========================================
+    # STAGE 1 — BUILD & PUSH
+    # ==========================================
+    - stage: Build & Push Image
+      name: "Build and Push Docker Images"
+
+      script:
+        - echo "=== Docker version ==="
+        - docker version
+
+        - echo "=== Docker Buildx version ==="
+        - docker buildx version
+
+        - echo "=== Create multi-platform builder ==="
+        - docker buildx create --name multiarch --driver docker-container --use
+        - docker buildx inspect --bootstrap
+
+        - echo "=== Login to Docker Hub ==="
+        - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+
+        - echo "=== Build and push backend ==="
+        - >
+          docker buildx build
+          --platform linux/amd64,linux/arm64
+          -t maurelk/time-manager-backend:latest
+          --push
+          ./theme1
+
+        - echo "=== Build and push frontend ==="
+        - >
+          docker buildx build
+          --platform linux/amd64,linux/arm64
+          -t maurelk/time-manager-frontend:latest
+          --push
+          ./theme2
+
+    # ==========================================
+    # STAGE 2 — DEPLOY
+    # ==========================================
+    - stage: Deploy
+      name: "Deploy to Oracle Cloud"
+
+      script:
+        - echo "=== Configure SSH ==="
+        - mkdir -p ~/.ssh
+        - echo "$ORACLE_SSH_KEY_B64" | base64 -d > ~/.ssh/oracle_deploy_key
+        - chmod 600 ~/.ssh/oracle_deploy_key
+        - ssh-keyscan -H "$ORACLE_HOST" >> ~/.ssh/known_hosts
+
+        - echo "=== Copy compose.yaml to Oracle ==="
+        - scp -i ~/.ssh/oracle_deploy_key compose.yaml "$ORACLE_USER@$ORACLE_HOST:~/Theme1/compose.yaml"
+
+        - echo "=== Deploy on Oracle ==="
+        - >
+          ssh -i ~/.ssh/oracle_deploy_key
+          "$ORACLE_USER@$ORACLE_HOST"
+          "cd ~/Theme1 &&
+          docker compose pull &&
+          docker compose up -d"
+
+        - echo "=== Deployment completed ==="

@@ -1,10 +1,7 @@
 <template>
   <main class="page-shell">
     <header class="topbar">
-      <a class="brand" href="#" aria-label="Time Manager home">
-        <span class="brand-mark">T</span><span>Time Manager</span>
-      </a>
-      <span class="workspace-label">Time Manager <span class="status-dot"></span></span>
+      <a class="brand" href="#" aria-label="Time Manager home"><span>Time Manager</span></a>
     </header>
 
     <section class="hero">
@@ -59,18 +56,8 @@
       <!-- Main Profile & Connected Dashboard Panel -->
       <section class="main-panel" aria-live="polite">
         <div v-if="user" class="profile-view">
-          <!-- Profile Header -->
-          <div class="profile-header">
-            <div class="avatar">{{ userInitials }}</div>
-            <div>
-              <p class="eyebrow">Selected account</p>
-              <h2>{{ user.username }}</h2>
-              <p class="muted">{{ user.email }}</p>
-            </div>
-            <span class="member-tag">Active</span>
-          </div>
-
-          <!-- Edit Account Form -->
+          <div class="profile-header"><div class="avatar">TM</div><div><p class="eyebrow">Selected account</p><h2>{{ user.username }}</h2><p class="muted">{{ user.email }}</p></div><span class="member-tag">Active</span></div>
+          <Clock :user-id="user.id" />
           <form class="editor" @submit.prevent="updateUser">
             <div class="section-title">
               <span class="step-number">02</span>
@@ -145,12 +132,7 @@
           </div>
         </div>
 
-        <div v-else class="empty-state">
-          <div class="empty-orbit"><span></span></div>
-          <p class="eyebrow">Your directory awaits</p>
-          <h2>Search or select an account<br>to get started.</h2>
-          <p class="muted">The person's working times, clock status, and charts will appear here.</p>
-        </div>
+        <div v-else class="empty-state"><p class="eyebrow">Your directory awaits</p><h2>Search for an account<br>to get started.</h2><p class="muted">The person’s profile and editing tools will appear here.</p></div>
 
         <!-- Add New Person Panel -->
         <div class="create-panel" style="margin-top: 40px;">
@@ -175,19 +157,13 @@
 </template>
 
 <script>
-import WorkingTimes from "./WorkingTimes.vue";
-import WorkingTime from "./WorkingTime.vue";
-import ClockManager from "./ClockManager.vue";
-import ChartManager from "./ChartManager.vue";
+import Clock from "./Clock.vue";
 
 export default {
   name: "User",
 
   components: {
-    WorkingTimes,
-    WorkingTime,
-    ClockManager,
-    ChartManager
+    Clock
   },
 
   data() {

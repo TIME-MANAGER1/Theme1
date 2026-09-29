@@ -1,9 +1,9 @@
 <script setup lang="ts">
   import moment from "moment";
-  import { onMounted, ref, watch } from "vue";
+  import { onMounted, ref } from "vue";
 
   const props = defineProps<{
-    userId?: number | string;
+    userId: number;
   }>();
 
   const current_time = ref(moment().format("HH:mm:ss"));
@@ -16,59 +16,41 @@
   const loading = ref(false);
 
   async function loadClockStatus() {
-    if (!props.userId || props.userId === 'undefined') return;
-    try {
-      const response = await fetch(`/api/clocks/${props.userId}`);
+    const response = await fetch(`/api/clocks/${props.userId}`);
 
-      if (!response.ok) {
-        throw new Error("Failed to load clock status");
-      }
-
-      const clocks = await response.json();
-      const list = Array.isArray(clocks) ? clocks : (clocks.data || []);
-      const latestClock = list.at(-1);
-
-      clockedIn.value = latestClock?.status ?? false;
-    } catch (err) {
-      console.error(err);
+    if (!response.ok) {
+      throw new Error("Failed to load clock status");
     }
+
+    const clocks = await response.json();
+    const latestClock = clocks.at(-1);
+
+    clockedIn.value = latestClock?.status ?? false;
   }
 
   async function handleButtonClick() {
-    if (!props.userId || props.userId === 'undefined') return;
     loading.value = true;
 
-    try {
-      const response = await fetch(`/api/clocks/${props.userId}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            time: new Date().toISOString(),
-            status: !clockedIn.value
-          })
-      })
+    const response = await fetch(`/api/clocks/${props.userId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          time: new Date().toISOString(),
+          status: !clockedIn.value
+        })
+    })
 
-      if (!response.ok) {
-          loading.value = false;
-          throw new Error("Failed to clock in");
-      }
-
-      const data = await response.json();
-      clockedIn.value = data.status;
-    } catch (err) {
-      console.error(err);
-    } finally {
-      loading.value = false;
+    if (!response.ok) {
+        loading.value = false;
+        throw new Error("Failed to clock in");
     }
+
+    const data = await response.json();
+    clockedIn.value = data.status;
+    loading.value = false;
   }
-
-  watch(() => props.userId, (newId) => {
-    if (newId) {
-      loadClockStatus();
-    }
-  });
 
   onMounted(loadClockStatus);
 </script>
@@ -77,12 +59,14 @@
   <div class="current-time">
     <p>{{ current_time }}</p>
   </div>
-  <div class="clock_in_clock_out" style="text-align: center; margin-top: 20px;">
-    <button :disabled="loading" @click="handleButtonClick" style="padding: 12px 24px; font-size: 16px; cursor: pointer;">
+  <div class="clock_in_clock_out">
+    <button :disabled="loading" @click="handleButtonClick">
       {{ loading ? "Loading..." : clockedIn ? "Clock Out" : "Clock In" }}
     </button>
   </div>
 </template>
+
+
 
 <style scoped>
 .current-time {
