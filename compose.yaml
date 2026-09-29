@@ -16,7 +16,7 @@ services:
       MIX_ENV: prod
       PHX_SERVER: "true"
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}
-      PHX_HOST: localhost
+      PHX_HOST: 145.241.169.233
       DATABASE_URL: ecto://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db/${POSTGRES_DB}
   db:
     image: postgres:16
