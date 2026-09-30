@@ -1,0 +1,116 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:      # ← adds a "Run workflow" button in the Actions tab
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository }}
+
+jobs:
+  # ─────────────────────────────────────────────────
+  build-and-push:
+    name: Build & push images to ghcr.io
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./theme1
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-backend:latest
+            ${{ env.IMAGE_PREFIX }}-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./theme2
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-frontend:latest
+            ${{ env.IMAGE_PREFIX }}-frontend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─────────────────────────────────────────────────
+  deploy:
+    name: Deploy to Oracle VM
+    runs-on: ubuntu-latest
+    needs: build-and-push
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Copy compose + Caddyfile to server
+        run: |
+          scp -i ~/.ssh/id_ed25519 \
+            docker-compose.prod.yml Caddyfile \
+            ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/timemanager/
+
+      - name: Write .env.prod on server
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} bash <<EOF
+            cat > /opt/timemanager/.env.prod <<'ENVEOF'
+          POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+          SECRET_KEY_BASE=${{ secrets.SECRET_KEY_BASE }}
+          PHX_HOST=${{ secrets.PHX_HOST }}
+          IMAGE_TAG=${{ github.sha }}
+          ENVEOF
+            chmod 600 /opt/timemanager/.env.prod
+          EOF
+
+      - name: Pull images & restart services
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} bash <<'EOF'
+            set -e
+            cd /opt/timemanager
+
+            # Pull fresh images
+            docker compose -f docker-compose.prod.yml --env-file .env.prod pull
+
+            # Run migrations using the fresh backend image
+            docker compose -f docker-compose.prod.yml --env-file .env.prod run --rm \
+              --entrypoint /app/bin/theme1 \
+              backend eval "Theme1.Release.migrate()"
+
+            # Recreate containers with new images
+            docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --remove-orphans
+
+            # Cleanup old images (keep disk usage low)
+            docker image prune -f
+          EOF
+
+      - name: Health check
+        run: |
+          sleep 5
+          curl -fsSL "https://${{ secrets.PHX_HOST }}/api/users" || (echo "Health check failed" && exit 1)

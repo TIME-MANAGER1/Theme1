@@ -1,0 +1,20 @@
+# Caddy auto-obtains a Let's Encrypt SSL certificate for the domain.
+# Replace YOUR_SUBDOMAIN.duckdns.org with your actual DuckDNS domain.
+
+YOUR_SUBDOMAIN.duckdns.org {
+    # Route API calls to the backend container
+    handle /api/* {
+        reverse_proxy backend:4000
+    }
+
+    # Everything else goes to the frontend (nginx serving Vue)
+    handle {
+        reverse_proxy frontend:80
+    }
+
+    # Log to stdout (visible via `docker compose logs caddy`)
+    log {
+        output stdout
+        format console
+    }
+}

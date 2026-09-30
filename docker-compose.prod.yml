@@ -1,0 +1,71 @@
+# Production compose file.
+# Run on the server with:
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+#
+# Difference from docker-compose.yml (dev):
+#  - uses pre-built images from ghcr.io (no build step)
+#  - has `restart: always`
+#  - behind Caddy (auto HTTPS on port 443)
+#  - no exposed DB port (only reachable from other containers)
+#  - no migrate service (we run migrations via a one-off command in deploy.yml)
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # No `ports:` — only reachable inside the Docker network. More secure.
+
+  backend:
+    image: ghcr.io/epitech2026-2027/i-dev-700-int-7-1-timemanager-23-backend:${IMAGE_TAG:-latest}
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MIX_ENV: prod
+      PHX_SERVER: "true"
+      PORT: "4000"
+      PHX_HOST: ${PHX_HOST}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      DATABASE_URL: ecto://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      POOL_SIZE: "10"
+    # No `ports:` — Caddy reaches it via the internal network.
+    expose:
+      - "4000"
+
+  frontend:
+    image: ghcr.io/epitech2026-2027/i-dev-700-int-7-1-timemanager-23-frontend:${IMAGE_TAG:-latest}
+    restart: always
+    depends_on:
+      - backend
+    expose:
+      - "80"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    depends_on:
+      - frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
