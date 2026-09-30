@@ -1,9 +1,9 @@
-name: Sync to Theme1
+```yaml
+name: Mirroring
 
 on:
   push:
-    branches:
-      - main
+  delete:
 
 jobs:
   sync:
@@ -15,9 +15,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Push to Theme1
-        env:
-          GH_TOKEN: ${{ secrets.OfficialEPITECH_to_Theme1 }}
-        run: |
-          git remote add theme1 https://x-access-token:${GH_TOKEN}@github.com/maurelK/Theme1.git
-          git push theme1 main:main
+      - name: Mirror to Theme1
+        uses: pixta-dev/repository-mirroring-action@v1
+        with:
+          target_repo_url: git@github.com:maurelK/Theme1.git
+          ssh_private_key: ${{ secrets.THEME1_SSH_PRIVATE_KEY }}
+```
