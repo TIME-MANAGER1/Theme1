@@ -1,0 +1,791 @@
+# Etude de mise en place Docker Compose
+
+## 1. Contexte du projet
+
+Le projet est compose de trois services Docker separes :
+
+- `frontend` : application Vue/Vite compilee puis servie par Nginx.
+- `backend` : API Phoenix/Elixir.
+- `db` : base de donnees PostgreSQL.
+
+Les ports exposes sur la machine hote sont :
+
+| Service | Port interne | Port hote | Role |
+|---|---:|---:|---|
+| Frontend | 80 | 8080 | Interface web et proxy Nginx |
+| Backend | 4000 | 4000 | API Phoenix |
+| PostgreSQL | 5432 | non expose | Base accessible seulement dans Docker |
+
+L'architecture finale est la suivante :
+
+```text
+Navigateur
+    |
+    v
+localhost:8080
+    |
+    v
+frontend / Nginx
+    |
+    | /api/* -> backend:4000
+    v
+backend / Phoenix
+    |
+    | DATABASE_URL -> db:5432
+    v
+db / PostgreSQL
+```
+
+## 2. Probleme principal rencontre
+
+L'erreur la plus importante etait :
+
+```text
+failed to bind host port 0.0.0.0:4000/tcp: address already in use
+```
+
+Cela signifie que Docker voulait publier le port interne `4000` du backend sur le port `4000` de la machine hote, mais que ce port etait deja utilise.
+
+Un port peut etre utilise par :
+
+- un ancien conteneur Docker ;
+- un serveur Phoenix lance directement avec `mix phx.server` ;
+- un autre projet ;
+- un processus reste actif apres un ancien lancement.
+
+Important : le port interne du backend pouvait rester `4000`. Seul le port hote devait etre libere ou change.
+
+### Solutions possibles
+
+#### Solution A : arreter le processus qui utilise le port
+
+```bash
+ss -ltnp | grep ':4000'
+```
+
+ou :
+
+```bash
+sudo lsof -i :4000
+```
+
+Puis arreter proprement le processus concerne.
+
+#### Solution B : arreter les anciens conteneurs du projet
+
+```bash
+docker compose down
+```
+
+Puis relancer :
+
+```bash
+docker compose up --build
+```
+
+#### Solution C : changer seulement le port hote
+
+```yaml
+backend:
+  ports:
+    - "4001:4000"
+```
+
+Dans ce cas :
+
+- le backend ecoute toujours sur `4000` dans Docker ;
+- l'API est accessible depuis la machine sur `localhost:4001` ;
+- le frontend doit continuer a utiliser `backend:4000` dans le reseau Docker.
+
+Il ne faut pas changer automatiquement toutes les references a `4000`. Il faut distinguer le port hote du port interne.
+
+## 3. Erreur de resolution DNS `db`
+
+Une autre erreur etait :
+
+```text
+Postgrex.Protocol failed to connect: tcp connect (db:5432): non-existing domain - :nxdomain
+```
+
+Le nom `db` est un nom DNS Docker. Il ne fonctionne que si :
+
+1. le service s'appelle bien `db` dans Compose ;
+2. le backend et la DB partagent le meme reseau Docker ;
+3. le conteneur DB est demarre ;
+4. le backend utilise une URL comme `ecto://user:password@db/database`.
+
+Dans Compose, le nom du service devient automatiquement un nom DNS interne. Il ne faut donc pas utiliser `localhost` pour joindre la DB depuis le backend.
+
+Incorrect dans un conteneur backend :
+
+```text
+ecto://postgres:postgres@localhost/myapp_dev
+```
+
+Correct :
+
+```text
+ecto://postgres:postgres@db/myapp_dev
+```
+
+`localhost` signifie toujours le conteneur courant. Dans le backend, `localhost` designe le backend lui-meme, pas PostgreSQL.
+
+Dans le fichier Compose actuel, les services utilisent le reseau par defaut `theme1_default`. C'est suffisant pour que `backend` resolve `db`.
+
+## 4. Erreur de demarrage du frontend et de Nginx
+
+Le frontend affichait :
+
+```text
+host not found in upstream "backend"
+```
+
+Nginx contenait :
+
+```nginx
+proxy_pass http://backend:4000;
+```
+
+Cette configuration est correcte, mais Nginx demarrait alors que le conteneur `backend` n'etait pas encore cree ou rattache au reseau. Nginx essayait donc de resoudre le nom `backend` trop tot.
+
+La correction appliquee est :
+
+```yaml
+frontend:
+  depends_on:
+    - backend
+```
+
+Cela garantit que le conteneur backend est demarre avant le frontend.
+
+Attention : `depends_on` ne garantit pas que l'application Phoenix est deja prete a recevoir des requetes. Il garantit seulement l'ordre de demarrage. Pour un projet plus robuste, il est preferable d'ajouter un healthcheck au backend et de faire dependre le frontend de l'etat `service_healthy`.
+
+## 5. Absence de proxy API dans le frontend
+
+Le frontend utilise des URLs relatives :
+
+```javascript
+fetch('/api/users')
+fetch(`/api/clocks/${userId}`)
+```
+
+En mode developpement avec Vite, le proxy de `vite.config.js` peut rediriger `/api` vers `localhost:4000`.
+
+Mais en production, le frontend est servi par Nginx. Le proxy Vite n'existe plus. Il fallait donc ajouter une configuration Nginx :
+
+```nginx
+location /api/ {
+  proxy_pass http://backend:4000;
+}
+```
+
+Sans cette regle, le navigateur aurait demande `/api/users` a Nginx, qui aurait cherche un fichier local au lieu de contacter Phoenix.
+
+La configuration Nginx actuelle gere aussi le routage Vue :
+
+```nginx
+location / {
+  try_files $uri $uri/ /index.html;
+}
+```
+
+Cela permet au router Vue de fonctionner apres un rafraichissement de page.
+
+## 6. Mauvaise configuration de la base dans Phoenix
+
+La configuration Phoenix initiale utilisait une base locale :
+
+```elixir
+hostname: "localhost"
+database: "theme1_dev"
+```
+
+Cette configuration convient pour lancer Phoenix directement sur la machine, mais pas pour lancer Phoenix dans Docker avec PostgreSQL dans un autre conteneur.
+
+La configuration utilise maintenant :
+
+```elixir
+database_url =
+  System.get_env("DATABASE_URL") ||
+    raise """
+    Les donnees de la base de donnees sont manquantes
+    """
+
+config :theme1, Theme1.Repo,
+  url: database_url
+```
+
+Et Compose fournit :
+
+```yaml
+DATABASE_URL: ecto://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db/${POSTGRES_DB}
+```
+
+Cette separation est importante :
+
+- la configuration Phoenix lit les variables ;
+- Compose fournit les valeurs ;
+- les valeurs changent selon l'environnement ;
+- les identifiants ne sont pas inscrits directement dans le code.
+
+## 7. Erreur de syntaxe dans `dev.exs`
+
+Une virgule finale avait ete placee apres :
+
+```elixir
+config :theme1, Theme1.Repo,
+  url: database_url,
+```
+
+En Elixir, cette virgule indiquait qu'un autre element de la keyword list devait suivre, mais la prochaine instruction etait une nouvelle configuration. Cela provoquait une erreur de syntaxe.
+
+La forme correcte est :
+
+```elixir
+config :theme1, Theme1.Repo,
+  url: database_url
+```
+
+Autre probleme rencontre :
+
+```elixir
+database_url =
+System.get_env("DATABASE_URL") ||
+raise
+  """
+```
+
+Cette ecriture faisait interpreter `raise` comme une variable dans ce contexte. La forme fiable est :
+
+```elixir
+database_url =
+  System.get_env("DATABASE_URL") ||
+    raise """
+    Les donnees de la base de donnees sont manquantes
+    """
+```
+
+Le formatage et l'indentation ne sont pas seulement esthetiques en Elixir : ils rendent visibles les blocs et reduisent les erreurs de structure.
+
+## 8. Gestion de `SECRET_KEY_BASE`
+
+Phoenix a besoin de `SECRET_KEY_BASE` en production. Sans cette variable, le backend refuse de demarrer.
+
+La variable est fournie par `.env` :
+
+```env
+SECRET_KEY_BASE=une_valeur_secrete_longue
+```
+
+Et Compose la transmet au backend :
+
+```yaml
+SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+```
+
+Le fichier `.env` doit rester dans `.gitignore` :
+
+```gitignore
+.env
+```
+
+Regles a retenir :
+
+- ne jamais publier un vrai secret dans Git ;
+- ne pas mettre de secrets dans le Dockerfile ;
+- ne pas mettre de secrets dans le frontend ;
+- utiliser des secrets differents pour dev, test et production ;
+- regenerer un secret si celui-ci a ete publie par erreur.
+
+Pour un lancement direct avec Mix, `.env` n'est pas automatiquement charge par Elixir. Il faut exporter les variables :
+
+```bash
+export DATABASE_URL=ecto://postgres:postgres@localhost/myapp_dev
+export SECRET_KEY_BASE="une_valeur_secrete"
+mix phx.server
+```
+
+Avec Docker Compose, `.env` est lu automatiquement par Compose.
+
+## 9. Tag Docker Elixir invalide
+
+Le Dockerfile utilisait :
+
+```dockerfile
+FROM elixir:1.18.5-otp-28
+```
+
+Docker a retourne :
+
+```text
+manifest unknown
+```
+
+Cela signifie que ce tag n'existe pas dans le registre Docker utilise.
+
+Un tag proche et disponible a ete choisi :
+
+```dockerfile
+FROM elixir:1.18.4-otp-28
+```
+
+Avant de choisir une image, il est utile de verifier son existence :
+
+```bash
+docker manifest inspect elixir:1.18.4-otp-28
+```
+
+Il faut eviter de choisir un tag uniquement parce qu'il semble logique. Les versions Elixir et OTP sont liees aux tags publies par l'image officielle.
+
+## 10. Ordre du Dockerfile backend
+
+Le Dockerfile final suit cet ordre :
+
+```dockerfile
+FROM elixir:1.18.4-otp-28
+WORKDIR /app
+ENV MIX_ENV=prod
+COPY mix.exs mix.lock ./
+RUN mix deps.get
+COPY . .
+RUN mix deps.compile && mix compile
+COPY entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+ENTRYPOINT ["./entrypoint.sh"]
+```
+
+Points importants :
+
+- `mix.exs` et `mix.lock` sont copies avant le reste pour profiter du cache Docker ;
+- `MIX_ENV=prod` est defini avant `mix deps.get` et la compilation ;
+- le code est compile dans l'image ;
+- les migrations sont lancees au demarrage via `entrypoint.sh` ;
+- `exec mix phx.server` permet au processus Phoenix de recevoir correctement les signaux Docker.
+
+## 11. Healthcheck PostgreSQL
+
+Le service DB utilise :
+
+```yaml
+healthcheck:
+  test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+  interval: 5s
+  timeout: 5s
+  retries: 10
+```
+
+Puis le backend depend de la DB saine :
+
+```yaml
+depends_on:
+  db:
+    condition: service_healthy
+```
+
+Sans healthcheck, Docker peut demarrer le backend juste apres le processus PostgreSQL, alors que PostgreSQL n'accepte pas encore de connexions.
+
+`depends_on` seul gere l'ordre, pas la disponibilite reelle. Le healthcheck reduit les erreurs de connexion au demarrage.
+
+## 12. Commandes de troubleshooting utilisees
+
+### Verifier la configuration Compose
+
+```bash
+docker compose config
+```
+
+Cette commande affiche la configuration finale apres interpolation des variables `.env`.
+
+Elle permet de verifier :
+
+- les ports ;
+- les variables ;
+- les dependances ;
+- les reseaux ;
+- les volumes ;
+- les conditions de healthcheck.
+
+Version silencieuse :
+
+```bash
+docker compose config --quiet
+```
+
+A utiliser dans un script ou pour savoir seulement si la configuration est valide.
+
+### Voir l'etat des services
+
+```bash
+docker compose ps
+```
+
+Montre les conteneurs du projet actuellement actifs.
+
+```bash
+docker compose ps --all
+```
+
+Montre aussi les conteneurs arretes, avec leur code de sortie.
+
+Interpretation :
+
+- `Up` : conteneur actif ;
+- `Created` : conteneur cree mais pas demarre ;
+- `Exited (1)` : erreur au demarrage ;
+- `healthy` : healthcheck reussi.
+
+### Lire les logs
+
+```bash
+docker compose logs --tail=40 backend frontend
+```
+
+Affiche les derniers logs des services choisis.
+
+Pour suivre les logs en direct :
+
+```bash
+docker compose logs -f backend
+```
+
+Les logs ont permis d'identifier :
+
+- l'echec DNS de `db` ;
+- l'echec DNS de `backend` dans Nginx ;
+- les migrations Phoenix ;
+- le demarrage de Bandit ;
+- les requetes API recues.
+
+### Lister les reseaux Docker
+
+```bash
+docker network ls
+```
+
+Permet de verifier que le reseau Compose existe.
+
+### Inspecter un reseau
+
+```bash
+docker network inspect theme1_default
+```
+
+Permet de voir les conteneurs attaches au reseau et leurs adresses IP.
+
+### Inspecter un conteneur
+
+```bash
+docker inspect theme1-backend-1
+```
+
+Pour afficher seulement les reseaux :
+
+```bash
+docker inspect theme1-backend-1 \
+  --format '{{json .NetworkSettings.Networks}}'
+```
+
+C'est utile pour verifier que `backend` et `db` partagent le meme reseau et que les alias `backend` et `db` existent.
+
+### Verifier les ports locaux
+
+```bash
+ss -ltnp | grep ':4000'
+```
+
+Montre quel processus ecoute sur le port TCP 4000.
+
+Alternative :
+
+```bash
+sudo lsof -i :4000
+```
+
+### Verifier l'existence d'une image Docker
+
+```bash
+docker manifest inspect elixir:1.18.4-otp-28
+```
+
+Permet de savoir si un tag est disponible avant de lancer un long build.
+
+### Construire les images
+
+```bash
+docker compose build
+```
+
+Construit les images sans demarrer les conteneurs.
+
+Pour reconstruire sans cache :
+
+```bash
+docker compose build --no-cache
+```
+
+A utiliser seulement quand le cache donne un comportement suspect ou apres une modification importante du Dockerfile.
+
+### Demarrer les services
+
+```bash
+docker compose up --build
+```
+
+Construit puis demarre les services en mode interactif.
+
+```bash
+docker compose up -d --build
+```
+
+Demarre en arriere-plan.
+
+Pour forcer la recreation :
+
+```bash
+docker compose up -d --force-recreate
+```
+
+Utile quand les conteneurs existants gardent une ancienne configuration reseau ou environnementale.
+
+### Arreter les services
+
+```bash
+docker compose down
+```
+
+Arrete et supprime les conteneurs et le reseau du projet, mais conserve normalement les volumes.
+
+Pour supprimer aussi les volumes :
+
+```bash
+docker compose down -v
+```
+
+Attention : cette commande supprime les donnees PostgreSQL du volume du projet.
+
+### Tester les endpoints depuis la machine
+
+```bash
+curl -i http://localhost:8080
+curl -i http://localhost:4000/api/users
+```
+
+Ces commandes distinguent :
+
+- un probleme de port ;
+- un probleme de Nginx ;
+- un probleme Phoenix ;
+- un probleme de route API.
+
+## 13. Erreurs de procedure a eviter
+
+### Lancer les commandes dans le mauvais dossier
+
+Le build frontend a echoue parce que `npm run build` a ete execute dans `theme1`, qui ne contient pas `package.json`.
+
+Bon reflexe :
+
+```bash
+cd /home/maurel/Theme1/theme2
+npm run build
+```
+
+Pour le backend :
+
+```bash
+cd /home/maurel/Theme1/theme1
+mix deps.get
+mix compile
+```
+
+Toujours verifier le dossier courant :
+
+```bash
+pwd
+```
+
+### Confondre port hote et port Docker
+
+Dans :
+
+```yaml
+- "8080:80"
+```
+
+`8080` est le port de la machine hote et `80` est le port du conteneur.
+
+Dans :
+
+```yaml
+proxy_pass http://backend:4000;
+```
+
+`4000` est le port interne du service backend, pas necessairement son port hote.
+
+### Utiliser `localhost` entre conteneurs
+
+Les conteneurs doivent communiquer avec les noms de services :
+
+```text
+backend -> db:5432
+frontend -> backend:4000
+```
+
+Ils ne doivent pas utiliser :
+
+```text
+localhost:5432
+localhost:4000
+```
+
+sauf pour une connexion depuis la machine hote.
+
+### Modifier plusieurs couches sans tester
+
+Il est preferable de tester dans cet ordre :
+
+1. `docker compose config --quiet` ;
+2. build frontend ;
+3. build backend ;
+4. demarrage de la DB ;
+5. demarrage du backend ;
+6. demarrage du frontend ;
+7. test HTTP de l'API ;
+8. test HTTP de l'interface.
+
+Cette progression permet de savoir quelle couche est responsable d'une erreur.
+
+## 14. Methode recommandee pour la prochaine configuration
+
+### Etape 1 : definir les responsabilites
+
+Avant d'ecrire Compose, lister :
+
+- qui sert l'interface ;
+- qui expose l'API ;
+- qui stocke les donnees ;
+- quels ports sont internes ;
+- quels ports sont accessibles depuis l'hote.
+
+### Etape 2 : choisir les noms de services
+
+Les noms doivent etre simples et stables :
+
+```yaml
+services:
+  frontend:
+  backend:
+  db:
+```
+
+Ces noms deviennent les noms DNS internes.
+
+### Etape 3 : externaliser la configuration
+
+Mettre les valeurs variables dans `.env` :
+
+```env
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=myapp_dev
+SECRET_KEY_BASE=...
+```
+
+Mettre les noms de variables dans Compose et Phoenix, pas les valeurs sensibles dans le code.
+
+### Etape 4 : configurer les healthchecks
+
+Chaque service critique devrait avoir un healthcheck ou une strategie de retry :
+
+- PostgreSQL : `pg_isready` ;
+- API : endpoint `/health` ;
+- frontend : test HTTP Nginx.
+
+### Etape 5 : configurer la communication interne
+
+Utiliser les noms Docker et les ports internes :
+
+```text
+DATABASE_URL=ecto://...@db:5432/...
+proxy_pass http://backend:4000;
+```
+
+### Etape 6 : traiter le routage frontend
+
+En developpement, Vite peut faire le proxy.
+
+En production, Nginx ou un reverse proxy doit faire le proxy `/api`.
+
+Toujours verifier les deux modes separement.
+
+### Etape 7 : tester progressivement
+
+```bash
+docker compose config --quiet
+docker compose build
+docker compose up -d
+docker compose ps
+docker compose logs --tail=100 backend frontend
+curl -i http://localhost:8080
+curl -i http://localhost:4000/api/users
+```
+
+## 15. Checklist finale reutilisable
+
+Avant de considerer la configuration terminee :
+
+- [ ] Chaque service possede un nom clair.
+- [ ] Les ports hote et internes sont distingues.
+- [ ] Les services utilisent les noms DNS Docker.
+- [ ] Aucun conteneur n'utilise `localhost` pour joindre un autre service.
+- [ ] PostgreSQL possede un healthcheck.
+- [ ] Le backend attend que PostgreSQL soit healthy.
+- [ ] Le frontend demarre apres la creation du backend.
+- [ ] Nginx proxy `/api` vers `backend:4000`.
+- [ ] Le router Vue utilise `try_files` vers `index.html`.
+- [ ] `DATABASE_URL` est fournie par l'environnement.
+- [ ] `SECRET_KEY_BASE` est fourni par l'environnement.
+- [ ] `.env` est dans `.gitignore`.
+- [ ] Les tags Docker ont ete verifies.
+- [ ] Les Dockerfiles utilisent un ordre compatible avec le cache.
+- [ ] `docker compose config --quiet` passe.
+- [ ] Le frontend compile.
+- [ ] Le backend compile.
+- [ ] Les migrations s'executent.
+- [ ] `docker compose ps` montre les services actifs.
+- [ ] Le frontend retourne HTTP 200.
+- [ ] L'API retourne une reponse HTTP attendue.
+
+## 16. Etat final verifie
+
+Les verifications realisees ont donne les resultats suivants :
+
+```text
+frontend HTTP 200
+backend HTTP 200
+PostgreSQL healthy
+Phoenix migrations executed
+Frontend container Up
+Backend container Up
+```
+
+Les URLs locales sont :
+
+```text
+Frontend : http://localhost:8080
+Backend  : http://localhost:4000
+API      : http://localhost:4000/api/users
+```
+
+## Conclusion
+
+Le probleme ne venait pas d'un seul fichier. Il venait de plusieurs contrats entre couches :
+
+- contrat des ports entre l'hote et les conteneurs ;
+- contrat DNS entre les services Docker ;
+- contrat de disponibilite entre PostgreSQL et Phoenix ;
+- contrat de proxy entre Nginx et Phoenix ;
+- contrat de configuration entre `.env`, Compose et Phoenix ;
+- contrat de version entre le Dockerfile et les tags officiels.
+
+La competence importante a retenir est de diagnostiquer couche par couche. Un message comme `nxdomain`, `address already in use`, `host not found in upstream` ou `Exited (1)` donne une direction precise. Il faut d'abord identifier la couche concernee, puis utiliser la commande adaptee avant de modifier la configuration.
