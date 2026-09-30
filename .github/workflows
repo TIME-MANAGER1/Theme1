@@ -1,0 +1,23 @@
+name: Sync to Theme1
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Push to Theme1
+        env:
+          GH_TOKEN: ${{ secrets.OfficialEPITECH_to_Theme1 }}
+        run: |
+          git remote add theme1 https://x-access-token:${GH_TOKEN}@github.com/maurelK/Theme1.git
+          git push theme1 main:main
