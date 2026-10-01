@@ -1,14 +1,54 @@
 import Config
 
-database_url =
-System.get_env("DATABASE_URL") || 
-raise """ 
-  Les donnees de la base de donnees sont manquantes by Maurel
-  """
+local_env =
+  case File.read(Path.expand("../../.env", __DIR__)) do
+    {:ok, contents} ->
+      contents
+      |> String.split(~r/\r?\n/)
+      |> Enum.reduce(%{}, fn line, values ->
+        case String.split(String.trim(line), "=", parts: 2) do
+          [key, value] when key != "" ->
+            if String.starts_with?(key, "#") do
+              values
+            else
+              Map.put(values, key, String.trim(value, "\"'"))
+            end
 
-# Configure your database
-config :theme1, Theme1.Repo,
-  url: database_url
+          _ ->
+            values
+        end
+      end)
+
+    {:error, _reason} ->
+      %{}
+  end
+
+env = fn key -> System.get_env(key) || Map.get(local_env, key) end
+database_url = env.("DATABASE_URL")
+
+if database_url && database_url != "" do
+  config :theme1, Theme1.Repo, url: database_url
+else
+  postgres_user = env.("POSTGRES_USER")
+  postgres_password = env.("POSTGRES_PASSWORD")
+  postgres_database = env.("POSTGRES_DB")
+
+  if Enum.any?([postgres_user, postgres_password, postgres_database], &(&1 in [nil, ""])) do
+    raise """
+    Database configuration is missing. Copy the repository's .env.example to .env,
+    or set DATABASE_URL / POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB.
+    """
+  end
+
+  postgres_port = String.to_integer(env.("POSTGRES_PORT") || "5432")
+
+  config :theme1, Theme1.Repo,
+    username: postgres_user,
+    password: postgres_password,
+    hostname: "localhost",
+    port: postgres_port,
+    database: postgres_database
+end
 
 # For development, we disable any cache and enable
 # debugging and code reloading.
@@ -23,9 +63,7 @@ config :theme1, Theme1Web.Endpoint,
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
-    secret_key_base:
-      System.get_env("SECRET_KEY_BASE") ||
-        "SXXIAnQnbmsASMA1dt+/x4TyruuhQWNbNS9tMxr6X+u6rL5Hc2mDdkA6uUL8fhvR",
+  secret_key_base: env.("SECRET_KEY_BASE"),
   watchers: []
 
 # ## SSL Support

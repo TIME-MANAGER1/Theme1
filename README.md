@@ -4,7 +4,13 @@ This project provides REST APIs for managing users for the **TIME MANAGER** proj
  
 ## Setup for Team Members
  
-After cloning the project or pulling the latest changes from the `dev` branch, run the database migrations **before starting the server**.
+Create the local environment file from the template in the repository root. Set its PostgreSQL username, password, and database to match your locally installed PostgreSQL server. Generate a secret key with `mix phx.gen.secret` from `theme1` and set it as `SECRET_KEY_BASE`.
+
+```powershell
+Copy-Item .env.example .env
+```
+
+After cloning the project or pulling the latest changes from the `main` branch, run the database migrations **before starting the server** from `theme1`.
  
 From the project directory:
  
