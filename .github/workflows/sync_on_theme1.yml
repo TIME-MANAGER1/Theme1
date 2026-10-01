@@ -1,18 +1,33 @@
-name: Mirroring
+```yaml
+name: Sync main to Theme1
 
-on: [push, delete]
+on:
+  push:
+    branches:
+      - main
 
 jobs:
-  to_theme1:
+  sync:
     runs-on: ubuntu-latest
-    steps:                                             
-      - uses: actions/checkout@v3
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
+          ref: main
 
-      - uses: pixta-dev/repository-mirroring-action@v1
-        with:
-          target_repo_url:
-            git@github.com:maurelK/Theme1.git
-          ssh_private_key:                              
-            ${{ secrets.THEME1_SSH_PRIVATE_KEY }}
+      - name: Push main to Theme1
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.THEME1_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+          git remote add theme1 git@github.com:maurelK/Theme1.git
+
+          git push theme1 main:main
+```
