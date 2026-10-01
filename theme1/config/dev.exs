@@ -2,14 +2,13 @@ import Config
 
 database_url =
 System.get_env("DATABASE_URL") || 
-raise 
-  """ 
+raise """ 
   Les donnees de la base de donnees sont manquantes by Maurel
   """
 
 # Configure your database
 config :theme1, Theme1.Repo,
-  url: database_url,
+  url: database_url
 
 # For development, we disable any cache and enable
 # debugging and code reloading.
@@ -24,7 +23,9 @@ config :theme1, Theme1Web.Endpoint,
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
-  secret_key_base: "SXXIAnQnbmsASMA1dt+/x4TyruuhQWNbNS9tMxr6X+u6rL5Hc2mDdkA6uUL8fhvR",
+    secret_key_base:
+      System.get_env("SECRET_KEY_BASE") ||
+        "SXXIAnQnbmsASMA1dt+/x4TyruuhQWNbNS9tMxr6X+u6rL5Hc2mDdkA6uUL8fhvR",
   watchers: []
 
 # ## SSL Support
