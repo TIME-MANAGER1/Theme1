@@ -2,15 +2,46 @@
  
 This project provides REST APIs for managing users for the **TIME MANAGER** project.
  
-## Setup for Team Members
- 
-Create the local environment file from the template in the repository root. Set its PostgreSQL username, password, and database to match your locally installed PostgreSQL server. Generate a secret key with `mix phx.gen.secret` from `theme1` and set it as `SECRET_KEY_BASE`.
+## Run Locally vs. Production
 
-```powershell
-Copy-Item .env.example .env
+| | Local (dev) | Production |
+|---|---|---|
+| Compose file | `compose.dev.yaml` (database only) | `compose.yaml` (db + backend + frontend images) |
+| Backend config | `config/dev.exs` | `config/runtime.exs` (reads env vars) |
+| Database | `localhost:5433`, `postgres/postgres`, `theme1_dev` | `DATABASE_URL` from `.env` |
+
+### Local
+
+```bash
+# 1. Start the dev database (from the repo root)
+docker compose -f compose.dev.yaml up -d
+
+# 2. Backend (from theme1/)
+mix deps.get
+mix ecto.setup        # or: mix ecto.create && mix ecto.migrate
+mix phx.server        # http://localhost:4000
+
+# 3. Frontend (from theme2/)
+npm install
+npm run dev           # proxies /api to http://localhost:4000
 ```
 
-After cloning the project or pulling the latest changes from the `main` branch, run the database migrations **before starting the server** from `theme1`.
+If port 4000 is already taken (e.g. the production stack is running locally with `docker compose up`), either stop it with `docker compose down` or use another port:
+
+```bash
+PORT=4001 mix phx.server
+API_URL=http://localhost:4001 npm run dev
+```
+
+To use a different database, set `DATABASE_URL=ecto://USER:PASS@HOST:PORT/DB`.
+
+### Production
+
+Travis builds and pushes the images on `main`, copies `compose.yaml` to the server and runs `docker compose pull && docker compose up -d`. Required variables in the server's `.env`: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `SECRET_KEY_BASE`.
+
+## Setup for Team Members
+ 
+After cloning the project or pulling the latest changes from the `dev` branch, run the database migrations **before starting the server**.
  
 From the project directory:
  
