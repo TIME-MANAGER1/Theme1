@@ -2,68 +2,87 @@
  
 This project provides REST APIs for managing users for the **TIME MANAGER** project.
  
-## Run Locally vs. Production
+## Reproducible Development
 
-| | Local (dev) | Production |
-|---|---|---|
-| Compose file | `compose.dev.yaml` (database only) | `compose.yaml` (db + backend + frontend images) |
-| Backend config | `config/dev.exs` | `config/runtime.exs` (reads env vars) |
-| Database | `localhost:5433`, `postgres/postgres`, `theme1_dev` | `DATABASE_URL` from `.env` |
+Install Docker Desktop with Docker Compose, then run the full development stack from the repository root:
 
-### Local
-
-```bash
-# 1. Start the dev database (from the repo root)
-docker compose -f compose.dev.yaml up -d
-
-# 2. Backend (from theme1/)
-mix deps.get
-mix ecto.setup        # or: mix ecto.create && mix ecto.migrate
-mix phx.server        # http://localhost:4000
-
-# 3. Frontend (from theme2/)
-npm install
-npm run dev           # proxies /api to http://localhost:4000
+```powershell
+docker compose -f compose.dev.yaml up --build
 ```
 
-If port 4000 is already taken (e.g. the production stack is running locally with `docker compose up`), either stop it with `docker compose down` or use another port:
+Compose runs PostgreSQL, Phoenix, and Vite in containers. The backend installs Elixir dependencies from `mix.lock`, and the frontend runs `npm ci` from `package-lock.json`. Open `http://localhost:5173`; Vite proxies API requests to the backend container. The backend is also published at `http://localhost:4001`, and PostgreSQL is available to local tools such as pgAdmin at `localhost:5433`.
 
-```bash
-PORT=4001 mix phx.server
-API_URL=http://localhost:4001 npm run dev
+### After each change
+
+Use the commands below in order depending on what changed:
+
+```powershell
+# 1) Start or restart the development stack
+cd C:\Users\an804\Desktop\I-DEV-700-INT-7-1-timemanager-23
+docker compose -f compose.dev.yaml up --build -d
+
+# 2) If only a backend file changed, reload backend only
+# this rebuilds the backend container without restarting the whole stack
+docker compose -f compose.dev.yaml up -d --no-deps --build backend
+
+# 3) If only a frontend file changed, reload frontend only
+docker compose -f compose.dev.yaml up -d --no-deps --build frontend
+
+# 4) If you changed Elixir code or DB logic, run the backend checks
+# inside the running backend container
+docker compose -f compose.dev.yaml exec backend mix compile
+docker compose -f compose.dev.yaml exec backend mix test
+
+# 5) If you changed Vue code, verify the frontend build
+cd theme2
+npm run build
+cd ..
+
+# 6) If you want to verify the live app, hit the local endpoints
+Invoke-WebRequest -UseBasicParsing -Uri "http://localhost:4001/"
+Invoke-WebRequest -UseBasicParsing -Uri "http://localhost:5173/api/users"
+
+# 7) Stop the stack when finished
+docker compose -f compose.dev.yaml down
 ```
 
-To use a different database, set `DATABASE_URL=ecto://USER:PASS@HOST:PORT/DB`.
+### Local logs
 
-### Production
+To inspect the active development logs while the stack is running:
 
-Travis builds and pushes the images on `main`, copies `compose.yaml` to the server and runs `docker compose pull && docker compose up -d`. Required variables in the server's `.env`: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `SECRET_KEY_BASE`.
+```powershell
+# follow backend logs
+docker compose -f compose.dev.yaml logs -f backend
 
-## Setup for Team Members
- 
-After cloning the project or pulling the latest changes from the `dev` branch, run the database migrations **before starting the server**.
- 
-From the project directory:
- 
-```bash
-mix ecto.migrate
+# follow frontend logs
+docker compose -f compose.dev.yaml logs -f frontend
+
+# follow database logs
+docker compose -f compose.dev.yaml logs -f db
+
+# view the last 100 lines of a service
+docker compose -f compose.dev.yaml logs --tail=100 backend
+docker compose -f compose.dev.yaml logs --tail=100 frontend
 ```
- 
-This creates/updates the required database tables and constraints.
- 
-> **Important:** Every team member should run `mix ecto.migrate` after pulling the latest backend changes, especially when new migration files have been added.
- 
-After the migrations are complete, start the Phoenix server:
- 
-```bash
-mix phx.server
+
+Use these when you want to debug start-up failures, request errors, proxy issues, or database access problems. `-f` follows the logs live until you stop with `Ctrl+C`.
+
+### Pre-push checks
+
+Run these before pushing changes to `main`:
+
+```powershell
+docker compose -f compose.dev.yaml exec backend mix test
+docker compose -f compose.dev.yaml exec frontend npm run build
+docker build -t time-manager-backend:preflight ./theme1
+docker build -t time-manager-frontend:preflight ./theme2
 ```
- 
-The API will be available at:
- 
-```
-http://localhost:4000
-```
+
+The first two commands test the development containers. The last two build the same production Dockerfiles used for deployment. Stop the development stack with `docker compose -f compose.dev.yaml down`; this keeps its database volume. Avoid `down -v` unless you intend to delete that local database.
+
+## Production
+
+Travis builds and pushes the images on `main`, copies `compose.yaml` to the Oracle server, then runs `docker compose pull && docker compose up -d`. The server's `.env` must define `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, and `SECRET_KEY_BASE`. The development Compose file uses separate local-only database credentials and storage.
  
 ## User API Flow
  

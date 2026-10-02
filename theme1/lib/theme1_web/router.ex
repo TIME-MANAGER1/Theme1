@@ -5,6 +5,12 @@ defmodule Theme1Web.Router do
     plug :accepts, ["json"]
   end
 
+  scope "/", Theme1Web do
+    pipe_through :api
+
+    get "/", HealthController, :index
+  end
+
   scope "/api", Theme1Web do
     pipe_through :api
     #Clock
