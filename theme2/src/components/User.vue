@@ -137,7 +137,11 @@
 
             <!-- Tab Content Views -->
             <div class="tab-content-area">
-              <WorkingTimes v-if="activeTab === 'workingTimes'" :userId="user.id" />
+              <WorkingTimes
+                v-if="activeTab === 'workingTimes'"
+                :userId="user.id"
+                @go-create-entry="activeTab = 'create'"
+              />
               <ClockManager v-else-if="activeTab === 'clock'" :userId="user.id" />
               <ChartManager v-else-if="activeTab === 'charts'" :userId="user.id" />
               <WorkingTime v-else-if="activeTab === 'create'" :userId="user.id" />
@@ -241,9 +245,6 @@ export default {
         if (response.ok) {
           const data = await response.json();
           this.allUsers = Array.isArray(data) ? data : (data.data || []);
-          if (!this.user && this.allUsers.length > 0) {
-            this.selectUser(this.allUsers[this.allUsers.length - 1]);
-          }
         }
       } catch (err) {
         console.error(err);

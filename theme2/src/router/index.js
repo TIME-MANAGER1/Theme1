@@ -7,7 +7,11 @@ import ClockManager from "../components/ClockManager.vue";
 const router = createRouter({
   history: createWebHistory(),
 
-  scrollBehavior(to) {
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) {
+      return savedPosition;
+    }
+
     if (to.hash) {
       return {
         el: to.hash,
@@ -15,7 +19,7 @@ const router = createRouter({
       };
     }
 
-    return { top: 0 };
+    return false;
   },
 
   routes: [

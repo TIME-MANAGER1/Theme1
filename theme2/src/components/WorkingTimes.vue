@@ -10,9 +10,9 @@
         <button class="btn-wt btn-outline" @click="getWorkingTimes" :disabled="loading">
           <span>Actualiser</span>
         </button>
-        <RouterLink :to="`/workingTime/${currentUserId}`" class="btn-wt btn-primary">
+        <button type="button" class="btn-wt btn-primary" @click="$emit('go-create-entry')">
           <span>+ Cr&eacute;er un cr&eacute;neau</span>
-        </RouterLink>
+        </button>
       </div>
     </header>
 
@@ -83,9 +83,9 @@
       <div v-else-if="workingTimes.length === 0" class="wt-empty-state">
         <h3>Aucun temps de travail enregistr&eacute;</h3>
         <p>Aucun cr&eacute;neau ne correspond aux crit&egrave;res pour cet utilisateur.</p>
-        <RouterLink :to="`/workingTime/${currentUserId}`" class="btn-wt btn-primary" style="margin-top: 16px;">
+        <button type="button" class="btn-wt btn-primary" style="margin-top: 16px;" @click="$emit('go-create-entry')">
           Cr&eacute;er un premier cr&eacute;neau
-        </RouterLink>
+        </button>
       </div>
 
       <table v-else class="wt-table">
